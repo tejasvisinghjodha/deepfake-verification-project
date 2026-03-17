@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ForensicLedger — AI Deepfake Verification</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset & Base ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0a0c0f;
+      --surface:  #10141a;
+      --card:     #151c25;
+      --border:   rgba(255,255,255,0.07);
+      --border-2: rgba(255,255,255,0.14);
+      --accent:   #00e5b4;
+      --accent-2: #0066ff;
+      --warn:     #ff4d4d;
+      --text:     #e8edf3;
+      --muted:    #6b7889;
+      --mono:     'Space Mono', monospace;
+      --sans:     'DM Sans', sans-serif;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* ── Grid scan-line overlay ─────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background:
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 2px,
+          rgba(0,229,180,0.015) 2px,
+          rgba(0,229,180,0.015) 4px
+        );
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────── */
+    .layout {
+      position: relative; z-index: 1;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 52px;
+    }
+
+    .logo {
+      font-family: var(--mono);
+      font-size: 13px;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    .logo span { color: var(--muted); }
+
+    .header-tag {
+      font-size: 11px;
+      font-family: var(--mono);
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 2px;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      font-size: clamp(28px, 5vw, 44px);
+      font-weight: 600;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    h1 em {
+      font-style: normal;
+      color: var(--accent);
+    }
+
+    .subtitle {
+      font-size: 16px;
+      color: var(--muted);
+      max-width: 480px;
+      margin-bottom: 48px;
+    }
+
+    /* ── Tab nav ────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      gap: 2px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 36px;
+    }
+
+    .tab-btn {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: none; border: none; cursor: pointer;
+      color: var(--muted);
+      padding: 10px 20px;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color .2s, border-color .2s;
+    }
+
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Upload zone ─────────────────────────────────────────────── */
+    .upload-zone {
+      border: 1.5px dashed var(--border-2);
+      border-radius: 8px;
+      padding: 48px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      background: var(--card);
+      position: relative;
+      margin-bottom: 24px;
+    }
+
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(0,229,180,0.04);
+    }
+
+    .upload-zone input[type="file"] {
+      position: absolute; inset: 0;
+      opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+
+    .upload-icon {
+      width: 48px; height: 48px;
+      border: 1.5px solid var(--border-2);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px;
+      color: var(--accent);
+      font-size: 20px;
+    }
+
+    .upload-zone p {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .upload-zone strong { color: var(--text); }
+
+    .file-preview {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      background: rgba(0,229,180,0.06);
+      border: 1px solid rgba(0,229,180,0.2);
+      border-radius: 6px;
+      margin-bottom: 24px;
+      font-size: 14px;
+    }
+
+    .file-preview.visible { display: flex; }
+    .file-preview .fname { font-family: var(--mono); font-size: 12px; color: var(--accent); }
+    .file-preview .fsize { color: var(--muted); font-size: 12px; margin-left: auto; }
+
+    /* ── Form fields ─────────────────────────────────────────────── */
+    .field { margin-bottom: 20px; }
+
+    label {
+      display: block;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border-2);
+      border-radius: 4px;
+      padding: 11px 14px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    input[type="text"]:focus { border-color: var(--accent); }
+
+    /* ── Buttons ─────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: none; cursor: pointer;
+      padding: 13px 28px;
+      border-radius: 4px;
+      transition: opacity .15s, transform .1s;
+    }
+
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+      font-weight: 700;
+    }
+
+    .btn-primary:hover:not(:disabled) { opacity: 0.88; }
+
+    .btn-verify {
+      background: var(--accent-2);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .btn-verify:hover:not(:disabled) { opacity: 0.88; }
+
+    /* ── Progress ────────────────────────────────────────────────── */
+    .progress-wrap {
+      display: none;
+      margin: 24px 0;
+    }
+
+    .progress-wrap.visible { display: block; }
+
+    .progress-steps {
+      display: flex;
+      gap: 0;
+      margin-bottom: 20px;
+    }
+
+    .step {
+      flex: 1;
+      display: flex; flex-direction: column; align-items: center;
+      position: relative;
+      font-size: 11px;
+      font-family: var(--mono);
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .step::before {
+      content: '';
+      display: block;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border-2);
+      background: var(--surface);
+      margin-bottom: 8px;
+      transition: border-color .3s, background .3s;
+      z-index: 1;
+    }
+
+    .step::after {
+      content: '';
+      position: absolute;
+      top: 14px; left: calc(50% + 14px);
+      width: calc(100% - 28px);
+      height: 1.5px;
+      background: var(--border-2);
+      transition: background .3s;
+    }
+
+    .step:last-child::after { display: none; }
+
+    .step.active::before {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(0,229,180,0.15);
+    }
+
+    .step.done::before {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .step.done::after { background: var(--accent); }
+    .step.done { color: var(--accent); }
+
+    .step-label { text-align: center; max-width: 80px; }
+
+    .progress-bar-wrap {
+      height: 2px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%; width: 0%;
+      background: var(--accent);
+      transition: width .4s ease;
+    }
+
+    /* ── Result card ─────────────────────────────────────────────── */
+    .result-card {
+      display: none;
+      border: 1px solid var(--border-2);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 32px;
+    }
+
+    .result-card.visible { display: block; }
+
+    .result-header {
+      display: flex; align-items: center; gap: 14px;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .result-badge {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 2px;
+      font-weight: 700;
+    }
+
+    .badge-success { background: rgba(0,229,180,0.12); color: var(--accent); }
+    .badge-error   { background: rgba(255,77,77,0.12);  color: var(--warn); }
+    .badge-info    { background: rgba(0,102,255,0.12);  color: #4d94ff; }
+
+    .result-title {
+      font-weight: 600; font-size: 16px;
+    }
+
+    .result-body {
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .result-field { grid-column: span 2; }
+    .result-field.half { grid-column: span 1; }
+
+    .result-field label {
+      margin-bottom: 6px;
+    }
+
+    .result-value {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 10px 12px;
+      word-break: break-all;
+      line-height: 1.5;
+    }
+
+    .result-value a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .result-value a:hover { text-decoration: underline; }
+
+    /* ── Verdict banner ──────────────────────────────────────────── */
+    .verdict {
+      display: flex; align-items: center; gap: 12px;
+      padding: 16px 24px;
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    .verdict.authentic {
+      background: rgba(0,229,180,0.08);
+      border-top: 1px solid rgba(0,229,180,0.2);
+      color: var(--accent);
+    }
+
+    .verdict.tampered {
+      background: rgba(255,77,77,0.08);
+      border-top: 1px solid rgba(255,77,77,0.2);
+      color: var(--warn);
+    }
+
+    .verdict-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .authentic .verdict-dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .tampered  .verdict-dot { background: var(--warn);   box-shadow: 0 0 8px var(--warn); }
+
+    /* ── Error message ───────────────────────────────────────────── */
+    .error-msg {
+      display: none;
+      background: rgba(255,77,77,0.08);
+      border: 1px solid rgba(255,77,77,0.25);
+      border-radius: 6px;
+      padding: 14px 18px;
+      color: var(--warn);
+      font-size: 13px;
+      font-family: var(--mono);
+      margin-top: 20px;
+    }
+
+    .error-msg.visible { display: block; }
+
+    /* ── Footer ──────────────────────────────────────────────────── */
+    footer {
+      margin-top: 64px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 12px;
+      font-family: var(--mono);
+      color: var(--muted);
+    }
+
+    .pulse {
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent);
+      animation: pulse 2s infinite;
+      margin-right: 6px;
+    }
+
+    @keyframes pulse {
+      0%,100% { opacity:1; }
+      50%      { opacity:.3; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">Forensic<span>/</span>Ledger</div>
+    <div class="header-tag">Sepolia Testnet</div>
+  </header>
+
+  <h1>AI-Driven<br><em>Deepfake</em> Detection<br>&amp; Verification</h1>
+  <p class="subtitle">
+    Upload a video to generate its AI fingerprint and anchor the hash
+    permanently on the Ethereum blockchain.
+  </p>
+
+  <!-- Tab navigation -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('register')">Register Video</button>
+    <button class="tab-btn" onclick="switchTab('verify')">Verify Authenticity</button>
+  </div>
+
+  <!-- ── TAB: Register ── -->
+  <div class="tab-panel active" id="tab-register">
+
+    <div class="upload-zone" id="drop-register"
+         ondragover="onDragOver(event,'drop-register')"
+         ondragleave="onDragLeave('drop-register')"
+         ondrop="onDrop(event,'register-file','file-preview-reg')">
+      <input type="file" id="register-file" accept="video/*"
+             onchange="onFileSelect(this,'file-preview-reg')">
+      <div class="upload-icon">▲</div>
+      <p><strong>Drag &amp; drop</strong> a video here</p>
+      <p>or click to browse &nbsp;·&nbsp; MP4, MOV, AVI, MKV, WebM</p>
+    </div>
+
+    <div class="file-preview" id="file-preview-reg">
+      <span>📹</span>
+      <span class="fname" id="fname-reg">—</span>
+      <span class="fsize" id="fsize-reg">—</span>
+    </div>
+
+    <button class="btn btn-primary" id="btn-register" onclick="registerVideo()" disabled>
+      ▶&nbsp; Generate &amp; Register
+    </button>
+
+    <!-- Progress -->
+    <div class="progress-wrap" id="prog-register">
+      <div class="progress-steps">
+        <div class="step" id="step-1">
+          <span class="step-label">Extracting frames</span>
+        </div>
+        <div class="step" id="step-2">
+          <span class="step-label">AI fingerprint</span>
+        </div>
+        <div class="step" id="step-3">
+          <span class="step-label">SHA-256 hash</span>
+        </div>
+        <div class="step" id="step-4">
+          <span class="step-label">Blockchain</span>
+        </div>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar" id="pbar-register"></div>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-card" id="result-register">
+      <div class="result-header">
+        <span class="result-badge badge-success">Registered</span>
+        <span class="result-title">Video anchored on blockchain</span>
+      </div>
+      <div class="result-body">
+        <div class="result-field half">
+          <label>Video ID</label>
+          <div class="result-value" id="r-video-id">—</div>
+        </div>
+        <div class="result-field half">
+          <label>Block Number</label>
+          <div class="result-value" id="r-block">—</div>
+        </div>
+        <div class="result-field">
+          <label>SHA-256 Hash</label>
+          <div class="result-value" id="r-hash">—</div>
+        </div>
+        <div class="result-field">
+          <label>Transaction</label>
+          <div class="result-value" id="r-tx">—</div>
+        </div>
+        <div class="result-field half">
+          <label>Duration</label>
+          <div class="result-value" id="r-duration">—</div>
+        </div>
+        <div class="result-field half">
+          <label>Resolution</label>
+          <div class="result-value" id="r-resolution">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="error-msg" id="err-register"></div>
+  </div>
+
+  <!-- ── TAB: Verify ── -->
+  <div class="tab-panel" id="tab-verify">
+
+    <div class="field">
+      <label>Video ID (from registration)</label>
+      <input type="text" id="verify-id" placeholder="e.g. abc123def456" />
+    </div>
+
+    <div class="upload-zone" id="drop-verify"
+         ondragover="onDragOver(event,'drop-verify')"
+         ondragleave="onDragLeave('drop-verify')"
+         ondrop="onDrop(event,'verify-file','file-preview-ver')">
+      <input type="file" id="verify-file" accept="video/*"
+             onchange="onFileSelect(this,'file-preview-ver')">
+      <div class="upload-icon">🔍</div>
+      <p><strong>Drag &amp; drop</strong> the video to verify</p>
+      <p>We'll recompute its fingerprint and compare against the blockchain</p>
+    </div>
+
+    <div class="file-preview" id="file-preview-ver">
+      <span>📹</span>
+      <span class="fname" id="fname-ver">—</span>
+      <span class="fsize" id="fsize-ver">—</span>
+    </div>
+
+    <button class="btn btn-verify" id="btn-verify" onclick="verifyVideo()" disabled>
+      🔗&nbsp; Verify on Blockchain
+    </button>
+
+    <!-- Result -->
+    <div class="result-card" id="result-verify">
+      <div class="result-header">
+        <span class="result-badge" id="v-badge">—</span>
+        <span class="result-title" id="v-title">—</span>
+      </div>
+      <div class="result-body">
+        <div class="result-field">
+          <label>Original Hash (blockchain)</label>
+          <div class="result-value" id="v-original">—</div>
+        </div>
+        <div class="result-field">
+          <label>Recomputed Hash (uploaded video)</label>
+          <div class="result-value" id="v-new">—</div>
+        </div>
+      </div>
+      <div class="verdict" id="v-verdict">
+        <span class="verdict-dot"></span>
+        <span id="v-verdict-text">—</span>
+      </div>
+    </div>
+
+    <div class="error-msg" id="err-verify"></div>
+  </div>
+
+  <footer>
+    <div><span class="pulse"></span>Sepolia Testnet · Chain ID 11155111</div>
+    <div>ForensicLedger v1.0 · B.Tech CSE Project</div>
+  </footer>
+</div>
+
+<script>
+  // ── Tab switching ────────────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach((b,i) => {
+      b.classList.toggle('active', ['register','verify'][i] === name);
+    });
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+  }
+
+  // ── Drag & drop ──────────────────────────────────────────────────
+  function onDragOver(e, zoneId) {
+    e.preventDefault();
+    document.getElementById(zoneId).classList.add('dragover');
+  }
+
+  function onDragLeave(zoneId) {
+    document.getElementById(zoneId).classList.remove('dragover');
+  }
+
+  function onDrop(e, inputId, previewId) {
+    e.preventDefault();
+    const zone = e.currentTarget;
+    zone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const input = document.getElementById(inputId);
+    // Assign dropped file to the hidden input
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    showPreview(file, previewId);
+    updateButtons();
+  }
+
+  function onFileSelect(input, previewId) {
+    if (input.files[0]) {
+      showPreview(input.files[0], previewId);
+    }
+    updateButtons();
+  }
+
+  function showPreview(file, previewId) {
+    const wrap = document.getElementById(previewId);
+    const prefix = previewId.includes('reg') ? 'reg' : 'ver';
+    wrap.classList.add('visible');
+    document.getElementById('fname-' + prefix).textContent = file.name;
+    document.getElementById('fsize-' + prefix).textContent =
+      (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function updateButtons() {
+    const regFile = document.getElementById('register-file').files[0];
+    document.getElementById('btn-register').disabled = !regFile;
+
+    const verFile = document.getElementById('verify-file').files[0];
+    const verId   = document.getElementById('verify-id').value.trim();
+    document.getElementById('btn-verify').disabled = !(verFile && verId);
+  }
+
+  document.getElementById('verify-id').addEventListener('input', updateButtons);
+
+  // ── Register ─────────────────────────────────────────────────────
+  async function registerVideo() {
+    const file = document.getElementById('register-file').files[0];
+    if (!file) return;
+
+    setError('register', '');
+    document.getElementById('result-register').classList.remove('visible');
+    showProgress('register', true);
+    document.getElementById('btn-register').disabled = true;
+
+    const steps = [
+      { id: 'step-1', pct: 25  },
+      { id: 'step-2', pct: 50  },
+      { id: 'step-3', pct: 75  },
+      { id: 'step-4', pct: 100 },
+    ];
+
+    // Animate steps in sync with the actual backend call
+    let stepIdx = 0;
+    const stepInterval = setInterval(() => {
+      if (stepIdx < steps.length) {
+        markStep(steps[stepIdx].id, 'active');
+        if (stepIdx > 0) markStep(steps[stepIdx - 1].id, 'done');
+        setProgress('register', steps[stepIdx].pct * 0.8); // hold at 80%
+        stepIdx++;
+      }
+    }, 1800);
+
+    const form = new FormData();
+    form.append('video', file);
+
+    try {
+      const res  = await fetch('/api/register', { method: 'POST', body: form });
+      const data = await res.json();
+
+      clearInterval(stepInterval);
+      steps.forEach(s => markStep(s.id, 'done'));
+      setProgress('register', 100);
+
+      if (!res.ok || data.error) {
+        setError('register', data.error || 'Registration failed.');
+        return;
+      }
+
+      // Fill result card
+      document.getElementById('r-video-id').textContent  = data.video_id;
+      document.getElementById('r-block').textContent     = data.block_number;
+      document.getElementById('r-hash').textContent      = data.hash;
+      document.getElementById('r-tx').innerHTML =
+        `<a href="${data.explorer_url}" target="_blank">${data.tx_hash}</a>`;
+      document.getElementById('r-duration').textContent  =
+        data.metadata.duration_seconds + 's';
+      document.getElementById('r-resolution').textContent =
+        data.metadata.width + '×' + data.metadata.height;
+
+      document.getElementById('result-register').classList.add('visible');
+
+    } catch (err) {
+      clearInterval(stepInterval);
+      setError('register', 'Network error: ' + err.message);
+    } finally {
+      document.getElementById('btn-register').disabled = false;
+    }
+  }
+
+  // ── Verify ───────────────────────────────────────────────────────
+  async function verifyVideo() {
+    const file    = document.getElementById('verify-file').files[0];
+    const videoId = document.getElementById('verify-id').value.trim();
+    if (!file || !videoId) return;
+
+    setError('verify', '');
+    document.getElementById('result-verify').classList.remove('visible');
+    document.getElementById('btn-verify').disabled = true;
+
+    const form = new FormData();
+    form.append('video', file);
+    form.append('video_id', videoId);
+
+    try {
+      const res  = await fetch('/api/verify', { method: 'POST', body: form });
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        setError('verify', data.error || 'Verification failed.');
+        return;
+      }
+
+      const card    = document.getElementById('result-verify');
+      const badge   = document.getElementById('v-badge');
+      const verdict = document.getElementById('v-verdict');
+
+      document.getElementById('v-original').textContent = data.original_hash;
+      document.getElementById('v-new').textContent      = data.new_hash;
+      document.getElementById('v-title').textContent    = data.verdict;
+
+      if (data.authentic) {
+        badge.textContent = 'Authentic';
+        badge.className   = 'result-badge badge-success';
+        verdict.className = 'verdict authentic';
+        document.getElementById('v-verdict-text').textContent =
+          'Hashes match — this video is authentic and unmodified.';
+      } else {
+        badge.textContent = 'Tampered';
+        badge.className   = 'result-badge badge-error';
+        verdict.className = 'verdict tampered';
+        document.getElementById('v-verdict-text').textContent =
+          'Hashes differ — this video has been altered or is not the original.';
+      }
+
+      card.classList.add('visible');
+
+    } catch (err) {
+      setError('verify', 'Network error: ' + err.message);
+    } finally {
+      document.getElementById('btn-verify').disabled = false;
+    }
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────
+  function showProgress(section, show) {
+    document.getElementById('prog-' + section).classList.toggle('visible', show);
+  }
+
+  function setProgress(section, pct) {
+    document.getElementById('pbar-' + section).style.width = pct + '%';
+  }
+
+  function markStep(id, cls) {
+    const el = document.getElementById(id);
+    el.classList.remove('active', 'done');
+    el.classList.add(cls);
+  }
+
+  function setError(section, msg) {
+    const el = document.getElementById('err-' + section);
+    el.textContent = msg;
+    el.classList.toggle('visible', !!msg);
+  }
+</script>
+</body>
+</html>
