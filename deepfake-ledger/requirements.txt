@@ -1,16 +1,19 @@
-# ── Web framework ────────────────────────────────────────────────
+# Web framework
 flask>=3.0.0
 werkzeug>=3.0.0
 python-dotenv>=1.0.0
 
-# ── Video processing (Member 1) ──────────────────────────────────
+# Video processing (Member 1)
 opencv-python>=4.9.0
 Pillow>=10.0.0
 
-# ── AI fingerprinting (Member 2) ────────────────────────────────
+# AI fingerprinting (Member 2)
 torch>=2.2.0
 torchvision>=0.17.0
 numpy>=1.26.0
 
-# ── Blockchain client (Member 3) ────────────────────────────────
+# Deepfake detection (Member 2) — NEW
+timm>=0.9.0
+
+# Blockchain client (Member 3)
 web3>=6.15.0

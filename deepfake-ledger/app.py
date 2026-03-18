@@ -2,32 +2,32 @@
 AI-Driven Deepfake Insurance & Forensic Ledger
 ================================================
 Flask backend — handles video upload, AI fingerprinting,
-SHA-256 hashing, blockchain interaction, and verification.
+deepfake detection, SHA-256 hashing, blockchain storage, and verification.
+
+Two-layer verification system:
+  Layer 1 — Deepfake Detection  : works on ANY video, no registration needed.
+                                   Returns a 0-1 probability of being fake.
+  Layer 2 — Hash Verification   : compares blockchain hash with recomputed hash.
+                                   Returns AUTHENTIC or TAMPERED.
 """
 
 import os
 import json
 import hashlib
-import tempfile
 from pathlib import Path
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 
-# ---------------------------------------------------------------------------
-# App configuration
-# ---------------------------------------------------------------------------
 app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = "uploads"
-app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500 MB limit
+app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 ALLOWED_EXTENSIONS = {"mp4", "avi", "mov", "mkv", "webm"}
-
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
-# ---------------------------------------------------------------------------
-# Lazy imports — heavy ML/blockchain libs load only when first used
-# ---------------------------------------------------------------------------
-_video_processor = None
-_ai_fingerprinter = None
+# Lazy-loaded singletons
+_video_processor   = None
+_ai_fingerprinter  = None
+_deepfake_detector = None
 _blockchain_client = None
 
 
@@ -47,6 +47,14 @@ def get_ai_fingerprinter():
     return _ai_fingerprinter
 
 
+def get_deepfake_detector():
+    global _deepfake_detector
+    if _deepfake_detector is None:
+        from model.deepfake_detector import DeepfakeDetector
+        _deepfake_detector = DeepfakeDetector()
+    return _deepfake_detector
+
+
 def get_blockchain_client():
     global _blockchain_client
     if _blockchain_client is None:
@@ -55,7 +63,7 @@ def get_blockchain_client():
     return _blockchain_client
 
 
-def allowed_file(filename: str) -> bool:
+def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
@@ -71,64 +79,90 @@ def index():
 @app.route("/api/register", methods=["POST"])
 def register_video():
     """
-    POST /api/register
-    ------------------
-    Upload a video, generate its AI fingerprint + SHA-256 hash,
-    and store the hash on the blockchain.
-
-    Returns JSON with:
-      - video_id      : unique identifier for this registration
-      - fingerprint   : serialised AI feature vector (truncated preview)
-      - hash          : SHA-256 hex digest
-      - tx_hash       : blockchain transaction hash
-      - block_number  : block where hash was recorded
+    Upload a video → extract frames → detect deepfake → fingerprint
+    → hash → store on blockchain. Returns full results.
     """
     if "video" not in request.files:
         return jsonify({"error": "No video file provided"}), 400
 
     file = request.files["video"]
-    if file.filename == "" or not allowed_file(file.filename):
+    if not file.filename or not allowed_file(file.filename):
         return jsonify({"error": "Invalid or unsupported file type"}), 400
 
-    filename = secure_filename(file.filename)
+    filename   = secure_filename(file.filename)
     video_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
     file.save(video_path)
 
     try:
-        # Step 1 — Extract frames & metadata  (Member 1)
-        processor = get_video_processor()
-        frames, metadata = processor.extract(video_path)
+        # Step 1 — Extract frames
+        frames, metadata = get_video_processor().extract(video_path)
 
-        # Step 2 — Generate AI fingerprint     (Member 2)
-        fingerprinter = get_ai_fingerprinter()
-        fingerprint_vector = fingerprinter.fingerprint(frames)
+        # Step 2 — Deepfake detection (NEW — runs on every video)
+        deepfake_result = get_deepfake_detector().predict(frames)
 
-        # Step 3 — SHA-256 hash the fingerprint
-        fingerprint_bytes = json.dumps(fingerprint_vector).encode("utf-8")
-        video_hash = hashlib.sha256(fingerprint_bytes).hexdigest()
+        # Step 3 — AI fingerprint
+        fingerprint_vector = get_ai_fingerprinter().fingerprint(frames)
 
-        # Step 4 — Store hash on blockchain    (Member 3)
-        blockchain = get_blockchain_client()
-        video_id = hashlib.md5(filename.encode()).hexdigest()[:12]
-        tx_receipt = blockchain.store_hash(video_id, video_hash)
+        # Step 4 — SHA-256 hash
+        video_hash = hashlib.sha256(
+            json.dumps(fingerprint_vector).encode()
+        ).hexdigest()
+
+        # Step 5 — Store on blockchain
+        video_id   = hashlib.md5(filename.encode()).hexdigest()[:12]
+        tx_receipt = get_blockchain_client().store_hash(video_id, video_hash)
 
         return jsonify({
-            "success": True,
+            "success":  True,
             "video_id": video_id,
             "filename": filename,
             "metadata": metadata,
-            "fingerprint_preview": fingerprint_vector[:8],   # first 8 dims only
-            "hash": video_hash,
-            "tx_hash": tx_receipt["tx_hash"],
+            "deepfake": _format_deepfake(deepfake_result),
+            "hash":         video_hash,
+            "tx_hash":      tx_receipt["tx_hash"],
             "block_number": tx_receipt["block_number"],
             "explorer_url": tx_receipt.get("explorer_url", ""),
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
     finally:
-        # Clean up uploaded file after processing
+        if os.path.exists(video_path):
+            os.remove(video_path)
+
+
+@app.route("/api/analyse", methods=["POST"])
+def analyse_only():
+    """
+    Run deepfake detection ONLY on any video — no blockchain, no registration needed.
+    This is the route for checking viral/suspicious videos that were never registered.
+    """
+    if "video" not in request.files:
+        return jsonify({"error": "No video file provided"}), 400
+
+    file = request.files["video"]
+    if not allowed_file(file.filename):
+        return jsonify({"error": "Unsupported file type"}), 400
+
+    filename   = secure_filename(file.filename)
+    video_path = os.path.join(app.config["UPLOAD_FOLDER"], f"analyse_{filename}")
+    file.save(video_path)
+
+    try:
+        frames, metadata = get_video_processor().extract(video_path)
+        deepfake_result  = get_deepfake_detector().predict(frames)
+
+        return jsonify({
+            "success":  True,
+            "filename": filename,
+            "metadata": metadata,
+            "deepfake": _format_deepfake(deepfake_result),
+            "note": "This video has not been registered on the blockchain.",
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
         if os.path.exists(video_path):
             os.remove(video_path)
 
@@ -136,17 +170,10 @@ def register_video():
 @app.route("/api/verify", methods=["POST"])
 def verify_video():
     """
-    POST /api/verify
-    ----------------
-    Re-upload a video and a known video_id to verify authenticity.
-    Generates a fresh fingerprint + hash, then compares against
-    the hash stored on the blockchain.
-
-    Returns JSON with:
-      - authentic     : True / False
-      - original_hash : hash stored on blockchain
-      - new_hash      : hash computed from uploaded video
-      - match         : True if hashes are identical
+    Re-upload a video + its video_id. Runs both verification layers:
+      Layer 1 — Deepfake AI score
+      Layer 2 — Blockchain hash comparison
+    Returns a combined verdict.
     """
     if "video" not in request.files:
         return jsonify({"error": "No video file provided"}), 400
@@ -159,43 +186,50 @@ def verify_video():
     if not allowed_file(file.filename):
         return jsonify({"error": "Unsupported file type"}), 400
 
-    filename = secure_filename(file.filename)
+    filename   = secure_filename(file.filename)
     video_path = os.path.join(app.config["UPLOAD_FOLDER"], f"verify_{filename}")
     file.save(video_path)
 
     try:
-        # Re-run the same pipeline on the candidate video
-        processor = get_video_processor()
-        frames, _ = processor.extract(video_path)
+        frames, _ = get_video_processor().extract(video_path)
 
-        fingerprinter = get_ai_fingerprinter()
-        fingerprint_vector = fingerprinter.fingerprint(frames)
+        # Layer 1 — Deepfake detection
+        deepfake_result = get_deepfake_detector().predict(frames)
 
-        fingerprint_bytes = json.dumps(fingerprint_vector).encode("utf-8")
-        new_hash = hashlib.sha256(fingerprint_bytes).hexdigest()
+        # Layer 2 — Hash comparison
+        fingerprint_vector = get_ai_fingerprinter().fingerprint(frames)
+        new_hash = hashlib.sha256(
+            json.dumps(fingerprint_vector).encode()
+        ).hexdigest()
 
-        # Fetch original hash from blockchain
-        blockchain = get_blockchain_client()
-        original_hash = blockchain.get_hash(video_id)
-
+        original_hash = get_blockchain_client().get_hash(video_id)
         if original_hash is None:
-            return jsonify({"error": f"No record found for video_id '{video_id}'"}), 404
+            return jsonify({
+                "error": f"No blockchain record found for video_id '{video_id}'.",
+                "tip":   "Register the original video first using /api/register",
+            }), 404
 
-        match = new_hash == original_hash
+        hash_match = new_hash == original_hash
 
         return jsonify({
-            "success": True,
+            "success":  True,
             "video_id": video_id,
-            "authentic": match,
-            "match": match,
-            "original_hash": original_hash,
-            "new_hash": new_hash,
-            "verdict": "AUTHENTIC — hashes match" if match else "TAMPERED — hashes differ",
+            "deepfake": _format_deepfake(deepfake_result),
+            "hash_check": {
+                "match":         hash_match,
+                "original_hash": original_hash,
+                "new_hash":      new_hash,
+                "verdict":       "AUTHENTIC" if hash_match else "TAMPERED",
+            },
+            "overall": {
+                "authentic": hash_match and deepfake_result["risk_level"] == "LOW",
+                "verdict":   _combined_verdict(hash_match, deepfake_result["risk_level"]),
+                "summary":   _combined_summary(hash_match, deepfake_result["risk_level"]),
+            },
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
     finally:
         if os.path.exists(video_path):
             os.remove(video_path)
@@ -203,19 +237,59 @@ def verify_video():
 
 @app.route("/api/lookup/<video_id>", methods=["GET"])
 def lookup_hash(video_id):
-    """GET /api/lookup/<video_id> — retrieve stored hash for a given video ID."""
     try:
-        blockchain = get_blockchain_client()
-        stored_hash = blockchain.get_hash(video_id)
-        if stored_hash is None:
+        stored = get_blockchain_client().get_hash(video_id)
+        if stored is None:
             return jsonify({"error": "Not found"}), 404
-        return jsonify({"video_id": video_id, "hash": stored_hash})
+        return jsonify({"video_id": video_id, "hash": stored})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 # ---------------------------------------------------------------------------
-# Entry point
+# Helpers
 # ---------------------------------------------------------------------------
+
+def _format_deepfake(result: dict) -> dict:
+    """Format deepfake result for API response."""
+    scores = result.get("frame_scores", [])
+    top5   = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)[:5]
+    return {
+        "score":             result["score"],
+        "verdict":           result["verdict"],
+        "risk_level":        result["risk_level"],
+        "confidence":        result["confidence"],
+        "frames_analysed":   result["frames_analysed"],
+        "is_trained":        result["is_trained"],
+        "suspicious_frames": [{"frame": i, "score": round(s, 4)} for i, s in top5],
+    }
+
+
+def _combined_verdict(hash_match: bool, risk: str) -> str:
+    if hash_match and risk == "LOW":
+        return "FULLY AUTHENTIC"
+    if hash_match and risk == "MEDIUM":
+        return "HASH MATCH — BUT SUSPICIOUS"
+    if hash_match and risk == "HIGH":
+        return "HASH MATCH — DEEPFAKE DETECTED"
+    if not hash_match and risk == "HIGH":
+        return "TAMPERED AND DEEPFAKE DETECTED"
+    if not hash_match:
+        return "TAMPERED — HASH MISMATCH"
+    return "INCONCLUSIVE"
+
+
+def _combined_summary(hash_match: bool, risk: str) -> str:
+    if hash_match and risk == "LOW":
+        return "Both layers passed. This video is authentic."
+    if hash_match and risk in ("MEDIUM", "HIGH"):
+        return "Hash matches but AI found suspicious patterns. Manual review recommended."
+    if not hash_match and risk == "HIGH":
+        return "Critical: video tampered AND deepfake artifacts detected."
+    if not hash_match:
+        return "Video does not match its registered hash — it has been modified."
+    return "Results inconclusive. Please review manually."
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)

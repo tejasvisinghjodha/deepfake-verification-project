@@ -1,834 +1,468 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>ForensicLedger — AI Deepfake Verification</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
-    /* ── Reset & Base ───────────────────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg:       #0a0c0f;
-      --surface:  #10141a;
-      --card:     #151c25;
-      --border:   rgba(255,255,255,0.07);
-      --border-2: rgba(255,255,255,0.14);
-      --accent:   #00e5b4;
-      --accent-2: #0066ff;
-      --warn:     #ff4d4d;
-      --text:     #e8edf3;
-      --muted:    #6b7889;
-      --mono:     'Space Mono', monospace;
-      --sans:     'DM Sans', sans-serif;
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0a0c0f;--surface:#10141a;--card:#151c25;
+      --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.14);
+      --accent:#00e5b4;--blue:#0066ff;--warn:#ff4d4d;--amber:#ffb020;
+      --text:#e8edf3;--muted:#6b7889;
+      --mono:'Space Mono',monospace;--sans:'DM Sans',sans-serif;
     }
-
-    html, body { height: 100%; }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--sans);
-      font-size: 15px;
-      line-height: 1.6;
-    }
-
-    /* ── Grid scan-line overlay ─────────────────────────────────── */
-    body::before {
-      content: '';
-      position: fixed; inset: 0; pointer-events: none; z-index: 0;
-      background:
-        repeating-linear-gradient(
-          0deg,
-          transparent,
-          transparent 2px,
-          rgba(0,229,180,0.015) 2px,
-          rgba(0,229,180,0.015) 4px
-        );
-    }
-
-    /* ── Layout ─────────────────────────────────────────────────── */
-    .layout {
-      position: relative; z-index: 1;
-      max-width: 860px;
-      margin: 0 auto;
-      padding: 48px 24px 80px;
-    }
-
-    /* ── Header ─────────────────────────────────────────────────── */
-    header {
-      display: flex; align-items: flex-start; justify-content: space-between;
-      margin-bottom: 52px;
-    }
-
-    .logo {
-      font-family: var(--mono);
-      font-size: 13px;
-      letter-spacing: 0.12em;
-      color: var(--accent);
-      text-transform: uppercase;
-    }
-
-    .logo span { color: var(--muted); }
-
-    .header-tag {
-      font-size: 11px;
-      font-family: var(--mono);
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      border: 1px solid var(--border);
-      padding: 4px 10px;
-      border-radius: 2px;
-      text-transform: uppercase;
-    }
-
-    h1 {
-      font-size: clamp(28px, 5vw, 44px);
-      font-weight: 600;
-      line-height: 1.15;
-      letter-spacing: -0.02em;
-      margin-bottom: 16px;
-    }
-
-    h1 em {
-      font-style: normal;
-      color: var(--accent);
-    }
-
-    .subtitle {
-      font-size: 16px;
-      color: var(--muted);
-      max-width: 480px;
-      margin-bottom: 48px;
-    }
-
-    /* ── Tab nav ────────────────────────────────────────────────── */
-    .tabs {
-      display: flex;
-      gap: 2px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 36px;
-    }
-
-    .tab-btn {
-      font-family: var(--mono);
-      font-size: 12px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      background: none; border: none; cursor: pointer;
-      color: var(--muted);
-      padding: 10px 20px;
-      border-bottom: 2px solid transparent;
-      margin-bottom: -1px;
-      transition: color .2s, border-color .2s;
-    }
-
-    .tab-btn.active {
-      color: var(--accent);
-      border-bottom-color: var(--accent);
-    }
-
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
-
-    /* ── Upload zone ─────────────────────────────────────────────── */
-    .upload-zone {
-      border: 1.5px dashed var(--border-2);
-      border-radius: 8px;
-      padding: 48px 32px;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color .2s, background .2s;
-      background: var(--card);
-      position: relative;
-      margin-bottom: 24px;
-    }
-
-    .upload-zone:hover, .upload-zone.dragover {
-      border-color: var(--accent);
-      background: rgba(0,229,180,0.04);
-    }
-
-    .upload-zone input[type="file"] {
-      position: absolute; inset: 0;
-      opacity: 0; cursor: pointer; width: 100%; height: 100%;
-    }
-
-    .upload-icon {
-      width: 48px; height: 48px;
-      border: 1.5px solid var(--border-2);
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 16px;
-      color: var(--accent);
-      font-size: 20px;
-    }
-
-    .upload-zone p {
-      color: var(--muted);
-      font-size: 14px;
-    }
-
-    .upload-zone strong { color: var(--text); }
-
-    .file-preview {
-      display: none;
-      align-items: center;
-      gap: 12px;
-      padding: 14px 18px;
-      background: rgba(0,229,180,0.06);
-      border: 1px solid rgba(0,229,180,0.2);
-      border-radius: 6px;
-      margin-bottom: 24px;
-      font-size: 14px;
-    }
-
-    .file-preview.visible { display: flex; }
-    .file-preview .fname { font-family: var(--mono); font-size: 12px; color: var(--accent); }
-    .file-preview .fsize { color: var(--muted); font-size: 12px; margin-left: auto; }
-
-    /* ── Form fields ─────────────────────────────────────────────── */
-    .field { margin-bottom: 20px; }
-
-    label {
-      display: block;
-      font-family: var(--mono);
-      font-size: 11px;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 8px;
-    }
-
-    input[type="text"] {
-      width: 100%;
-      background: var(--card);
-      border: 1px solid var(--border-2);
-      border-radius: 4px;
-      padding: 11px 14px;
-      color: var(--text);
-      font-family: var(--mono);
-      font-size: 13px;
-      outline: none;
-      transition: border-color .2s;
-    }
-
-    input[type="text"]:focus { border-color: var(--accent); }
-
-    /* ── Buttons ─────────────────────────────────────────────────── */
-    .btn {
-      display: inline-flex; align-items: center; gap: 8px;
-      font-family: var(--mono);
-      font-size: 12px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      border: none; cursor: pointer;
-      padding: 13px 28px;
-      border-radius: 4px;
-      transition: opacity .15s, transform .1s;
-    }
-
-    .btn:active { transform: scale(0.98); }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-    .btn-primary {
-      background: var(--accent);
-      color: #000;
-      font-weight: 700;
-    }
-
-    .btn-primary:hover:not(:disabled) { opacity: 0.88; }
-
-    .btn-verify {
-      background: var(--accent-2);
-      color: #fff;
-      font-weight: 700;
-    }
-
-    .btn-verify:hover:not(:disabled) { opacity: 0.88; }
-
-    /* ── Progress ────────────────────────────────────────────────── */
-    .progress-wrap {
-      display: none;
-      margin: 24px 0;
-    }
-
-    .progress-wrap.visible { display: block; }
-
-    .progress-steps {
-      display: flex;
-      gap: 0;
-      margin-bottom: 20px;
-    }
-
-    .step {
-      flex: 1;
-      display: flex; flex-direction: column; align-items: center;
-      position: relative;
-      font-size: 11px;
-      font-family: var(--mono);
-      letter-spacing: 0.06em;
-      color: var(--muted);
-      text-transform: uppercase;
-    }
-
-    .step::before {
-      content: '';
-      display: block;
-      width: 28px; height: 28px;
-      border-radius: 50%;
-      border: 1.5px solid var(--border-2);
-      background: var(--surface);
-      margin-bottom: 8px;
-      transition: border-color .3s, background .3s;
-      z-index: 1;
-    }
-
-    .step::after {
-      content: '';
-      position: absolute;
-      top: 14px; left: calc(50% + 14px);
-      width: calc(100% - 28px);
-      height: 1.5px;
-      background: var(--border-2);
-      transition: background .3s;
-    }
-
-    .step:last-child::after { display: none; }
-
-    .step.active::before {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 4px rgba(0,229,180,0.15);
-    }
-
-    .step.done::before {
-      background: var(--accent);
-      border-color: var(--accent);
-    }
-
-    .step.done::after { background: var(--accent); }
-    .step.done { color: var(--accent); }
-
-    .step-label { text-align: center; max-width: 80px; }
-
-    .progress-bar-wrap {
-      height: 2px;
-      background: var(--border);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-
-    .progress-bar {
-      height: 100%; width: 0%;
-      background: var(--accent);
-      transition: width .4s ease;
-    }
-
-    /* ── Result card ─────────────────────────────────────────────── */
-    .result-card {
-      display: none;
-      border: 1px solid var(--border-2);
-      border-radius: 8px;
-      overflow: hidden;
-      margin-top: 32px;
-    }
-
-    .result-card.visible { display: block; }
-
-    .result-header {
-      display: flex; align-items: center; gap: 14px;
-      padding: 20px 24px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .result-badge {
-      font-family: var(--mono);
-      font-size: 11px;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      padding: 4px 12px;
-      border-radius: 2px;
-      font-weight: 700;
-    }
-
-    .badge-success { background: rgba(0,229,180,0.12); color: var(--accent); }
-    .badge-error   { background: rgba(255,77,77,0.12);  color: var(--warn); }
-    .badge-info    { background: rgba(0,102,255,0.12);  color: #4d94ff; }
-
-    .result-title {
-      font-weight: 600; font-size: 16px;
-    }
-
-    .result-body {
-      padding: 24px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-
-    .result-field { grid-column: span 2; }
-    .result-field.half { grid-column: span 1; }
-
-    .result-field label {
-      margin-bottom: 6px;
-    }
-
-    .result-value {
-      font-family: var(--mono);
-      font-size: 12px;
-      color: var(--text);
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 10px 12px;
-      word-break: break-all;
-      line-height: 1.5;
-    }
-
-    .result-value a {
-      color: var(--accent);
-      text-decoration: none;
-    }
-
-    .result-value a:hover { text-decoration: underline; }
-
-    /* ── Verdict banner ──────────────────────────────────────────── */
-    .verdict {
-      display: flex; align-items: center; gap: 12px;
-      padding: 16px 24px;
-      font-weight: 600;
-      font-size: 15px;
-    }
-
-    .verdict.authentic {
-      background: rgba(0,229,180,0.08);
-      border-top: 1px solid rgba(0,229,180,0.2);
-      color: var(--accent);
-    }
-
-    .verdict.tampered {
-      background: rgba(255,77,77,0.08);
-      border-top: 1px solid rgba(255,77,77,0.2);
-      color: var(--warn);
-    }
-
-    .verdict-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    .authentic .verdict-dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
-    .tampered  .verdict-dot { background: var(--warn);   box-shadow: 0 0 8px var(--warn); }
-
-    /* ── Error message ───────────────────────────────────────────── */
-    .error-msg {
-      display: none;
-      background: rgba(255,77,77,0.08);
-      border: 1px solid rgba(255,77,77,0.25);
-      border-radius: 6px;
-      padding: 14px 18px;
-      color: var(--warn);
-      font-size: 13px;
-      font-family: var(--mono);
-      margin-top: 20px;
-    }
-
-    .error-msg.visible { display: block; }
-
-    /* ── Footer ──────────────────────────────────────────────────── */
-    footer {
-      margin-top: 64px;
-      padding-top: 24px;
-      border-top: 1px solid var(--border);
-      display: flex; justify-content: space-between; align-items: center;
-      font-size: 12px;
-      font-family: var(--mono);
-      color: var(--muted);
-    }
-
-    .pulse {
-      display: inline-block;
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--accent);
-      box-shadow: 0 0 6px var(--accent);
-      animation: pulse 2s infinite;
-      margin-right: 6px;
-    }
-
-    @keyframes pulse {
-      0%,100% { opacity:1; }
-      50%      { opacity:.3; }
-    }
+    html,body{height:100%}
+    body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.6}
+    body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+      background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,229,180,0.012) 2px,rgba(0,229,180,0.012) 4px)}
+    .layout{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:48px 24px 80px}
+    header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:52px}
+    .logo{font-family:var(--mono);font-size:13px;letter-spacing:.12em;color:var(--accent);text-transform:uppercase}
+    .logo span{color:var(--muted)}
+    .header-tag{font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--muted);border:1px solid var(--border);padding:4px 10px;border-radius:2px;text-transform:uppercase}
+    h1{font-size:clamp(26px,5vw,42px);font-weight:600;line-height:1.15;letter-spacing:-.02em;margin-bottom:14px}
+    h1 em{font-style:normal;color:var(--accent)}
+    .subtitle{font-size:15px;color:var(--muted);max-width:500px;margin-bottom:44px}
+    /* Tabs */
+    .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:32px}
+    .tab-btn{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;background:none;border:none;cursor:pointer;color:var(--muted);padding:10px 18px;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .2s,border-color .2s}
+    .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+    .tab-panel{display:none}.tab-panel.active{display:block}
+    /* Upload */
+    .upload-zone{border:1.5px dashed var(--border2);border-radius:8px;padding:40px 28px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;background:var(--card);position:relative;margin-bottom:20px}
+    .upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);background:rgba(0,229,180,0.04)}
+    .upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+    .upload-zone .icon{font-size:28px;margin-bottom:12px}
+    .upload-zone p{color:var(--muted);font-size:14px}.upload-zone strong{color:var(--text)}
+    .file-preview{display:none;align-items:center;gap:10px;padding:12px 16px;background:rgba(0,229,180,0.06);border:1px solid rgba(0,229,180,0.2);border-radius:6px;margin-bottom:20px;font-size:13px}
+    .file-preview.visible{display:flex}
+    .fname{font-family:var(--mono);font-size:12px;color:var(--accent)}
+    .fsize{color:var(--muted);font-size:12px;margin-left:auto}
+    /* Fields */
+    .field{margin-bottom:18px}
+    label{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+    input[type=text]{width:100%;background:var(--card);border:1px solid var(--border2);border-radius:4px;padding:10px 13px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;transition:border-color .2s}
+    input[type=text]:focus{border-color:var(--accent)}
+    /* Buttons */
+    .btn{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;border:none;cursor:pointer;padding:12px 26px;border-radius:4px;transition:opacity .15s,transform .1s}
+    .btn:active{transform:scale(.98)}.btn:disabled{opacity:.4;cursor:not-allowed}
+    .btn-primary{background:var(--accent);color:#000;font-weight:700}
+    .btn-primary:hover:not(:disabled){opacity:.88}
+    .btn-verify{background:var(--blue);color:#fff;font-weight:700}
+    .btn-verify:hover:not(:disabled){opacity:.88}
+    .btn-analyse{background:var(--amber);color:#000;font-weight:700}
+    .btn-analyse:hover:not(:disabled){opacity:.88}
+    /* Progress */
+    .progress-wrap{display:none;margin:20px 0}.progress-wrap.visible{display:block}
+    .progress-bar-wrap{height:2px;background:var(--border);border-radius:2px;overflow:hidden}
+    .progress-bar{height:100%;width:0%;background:var(--accent);transition:width .4s ease}
+    .progress-label{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:8px;letter-spacing:.06em;text-transform:uppercase}
+    /* Result cards */
+    .result-card{display:none;border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-top:28px}
+    .result-card.visible{display:block}
+    .result-header{display:flex;align-items:center;gap:12px;padding:18px 22px;border-bottom:1px solid var(--border)}
+    .result-badge{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:4px 12px;border-radius:2px;font-weight:700}
+    .badge-success{background:rgba(0,229,180,.12);color:var(--accent)}
+    .badge-error{background:rgba(255,77,77,.12);color:var(--warn)}
+    .badge-warn{background:rgba(255,176,32,.12);color:var(--amber)}
+    .badge-info{background:rgba(0,102,255,.12);color:#4d94ff}
+    .result-title{font-weight:600;font-size:15px}
+    /* Two-layer layout */
+    .layers{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)}
+    .layer{background:var(--card);padding:20px 22px}
+    .layer-label{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+    .layer-title{font-size:15px;font-weight:600;margin-bottom:6px}
+    /* Deepfake score bar */
+    .score-bar-wrap{height:8px;background:var(--surface);border-radius:4px;overflow:hidden;margin:10px 0 6px}
+    .score-bar{height:100%;border-radius:4px;transition:width .8s ease}
+    .score-low{background:var(--accent)}
+    .score-med{background:var(--amber)}
+    .score-high{background:var(--warn)}
+    .score-label{font-family:var(--mono);font-size:12px;color:var(--muted)}
+    /* Field rows */
+    .result-body{padding:20px 22px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .rf{grid-column:span 2}.rf.half{grid-column:span 1}
+    .rv{font-family:var(--mono);font-size:12px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:9px 11px;word-break:break-all;line-height:1.5}
+    .rv a{color:var(--accent);text-decoration:none}.rv a:hover{text-decoration:underline}
+    /* Verdict banner */
+    .verdict{display:flex;align-items:center;gap:12px;padding:16px 22px;font-weight:600;font-size:14px;border-top:1px solid var(--border)}
+    .verdict.authentic{color:var(--accent)}.verdict.tampered{color:var(--warn)}.verdict.suspicious{color:var(--amber)}
+    .vdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .authentic .vdot{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+    .tampered .vdot{background:var(--warn);box-shadow:0 0 8px var(--warn)}
+    .suspicious .vdot{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+    /* Error */
+    .error-msg{display:none;background:rgba(255,77,77,.08);border:1px solid rgba(255,77,77,.25);border-radius:6px;padding:13px 17px;color:var(--warn);font-size:13px;font-family:var(--mono);margin-top:18px}
+    .error-msg.visible{display:block}
+    /* Untrained warning */
+    .untrained-note{font-size:12px;color:var(--amber);font-family:var(--mono);padding:8px 12px;background:rgba(255,176,32,.08);border-radius:4px;margin-top:8px}
+    footer{margin-top:60px;padding-top:22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;font-family:var(--mono);color:var(--muted)}
+    .pulse{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent);animation:pulse 2s infinite;margin-right:6px}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    @media(max-width:600px){.layers{grid-template-columns:1fr}.result-body{grid-template-columns:1fr}.rf.half{grid-column:span 1}}
   </style>
 </head>
 <body>
 <div class="layout">
-
-  <!-- Header -->
   <header>
     <div class="logo">Forensic<span>/</span>Ledger</div>
-    <div class="header-tag">Sepolia Testnet</div>
+    <div class="header-tag">Two-Layer AI Verification</div>
   </header>
 
-  <h1>AI-Driven<br><em>Deepfake</em> Detection<br>&amp; Verification</h1>
-  <p class="subtitle">
-    Upload a video to generate its AI fingerprint and anchor the hash
-    permanently on the Ethereum blockchain.
-  </p>
+  <h1>AI Deepfake Detection<br>&amp; <em>Blockchain</em> Verification</h1>
+  <p class="subtitle">Two independent verification layers — AI deepfake scanning on any video, plus cryptographic hash verification for registered videos.</p>
 
-  <!-- Tab navigation -->
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('register')">Register Video</button>
-    <button class="tab-btn" onclick="switchTab('verify')">Verify Authenticity</button>
+    <button class="tab-btn" onclick="switchTab('analyse')">Analyse Any Video</button>
+    <button class="tab-btn" onclick="switchTab('verify')">Verify Registered</button>
   </div>
 
-  <!-- ── TAB: Register ── -->
+  <!-- ═══ TAB: REGISTER ═══ -->
   <div class="tab-panel active" id="tab-register">
+    <div class="upload-zone" id="dz-reg" ondragover="onDragOver(event,'dz-reg')" ondragleave="onDragLeave('dz-reg')" ondrop="onDrop(event,'f-reg','fp-reg')">
+      <input type="file" id="f-reg" accept="video/*" onchange="onFileSelect(this,'fp-reg','reg')">
+      <div class="icon">▲</div>
+      <p><strong>Drag &amp; drop</strong> a video here, or click to browse</p>
+      <p style="margin-top:4px">MP4 · MOV · AVI · MKV · WebM</p>
+    </div>
+    <div class="file-preview" id="fp-reg">
+      <span>📹</span><span class="fname" id="fn-reg">—</span><span class="fsize" id="fs-reg">—</span>
+    </div>
+    <button class="btn btn-primary" id="btn-reg" onclick="registerVideo()" disabled>▶ &nbsp;Register &amp; Analyse</button>
 
-    <div class="upload-zone" id="drop-register"
-         ondragover="onDragOver(event,'drop-register')"
-         ondragleave="onDragLeave('drop-register')"
-         ondrop="onDrop(event,'register-file','file-preview-reg')">
-      <input type="file" id="register-file" accept="video/*"
-             onchange="onFileSelect(this,'file-preview-reg')">
-      <div class="upload-icon">▲</div>
-      <p><strong>Drag &amp; drop</strong> a video here</p>
-      <p>or click to browse &nbsp;·&nbsp; MP4, MOV, AVI, MKV, WebM</p>
+    <div class="progress-wrap" id="prog-reg">
+      <div class="progress-label" id="prog-reg-label">Extracting frames...</div>
+      <div class="progress-bar-wrap"><div class="progress-bar" id="pbar-reg"></div></div>
     </div>
 
-    <div class="file-preview" id="file-preview-reg">
-      <span>📹</span>
-      <span class="fname" id="fname-reg">—</span>
-      <span class="fsize" id="fsize-reg">—</span>
-    </div>
-
-    <button class="btn btn-primary" id="btn-register" onclick="registerVideo()" disabled>
-      ▶&nbsp; Generate &amp; Register
-    </button>
-
-    <!-- Progress -->
-    <div class="progress-wrap" id="prog-register">
-      <div class="progress-steps">
-        <div class="step" id="step-1">
-          <span class="step-label">Extracting frames</span>
-        </div>
-        <div class="step" id="step-2">
-          <span class="step-label">AI fingerprint</span>
-        </div>
-        <div class="step" id="step-3">
-          <span class="step-label">SHA-256 hash</span>
-        </div>
-        <div class="step" id="step-4">
-          <span class="step-label">Blockchain</span>
-        </div>
-      </div>
-      <div class="progress-bar-wrap">
-        <div class="progress-bar" id="pbar-register"></div>
-      </div>
-    </div>
-
-    <!-- Result -->
-    <div class="result-card" id="result-register">
+    <div class="result-card" id="res-reg">
       <div class="result-header">
         <span class="result-badge badge-success">Registered</span>
         <span class="result-title">Video anchored on blockchain</span>
       </div>
-      <div class="result-body">
-        <div class="result-field half">
-          <label>Video ID</label>
-          <div class="result-value" id="r-video-id">—</div>
+      <!-- Two-layer results -->
+      <div class="layers">
+        <!-- Layer 1: Deepfake -->
+        <div class="layer">
+          <div class="layer-label">Layer 1 — AI deepfake scan</div>
+          <div class="layer-title" id="reg-df-verdict">—</div>
+          <div class="score-bar-wrap"><div class="score-bar" id="reg-df-bar" style="width:0%"></div></div>
+          <div class="score-label" id="reg-df-conf">—</div>
+          <div class="untrained-note" id="reg-df-note" style="display:none">Note: model not yet trained on deepfake data. Train for accurate scores.</div>
         </div>
-        <div class="result-field half">
-          <label>Block Number</label>
-          <div class="result-value" id="r-block">—</div>
-        </div>
-        <div class="result-field">
-          <label>SHA-256 Hash</label>
-          <div class="result-value" id="r-hash">—</div>
-        </div>
-        <div class="result-field">
-          <label>Transaction</label>
-          <div class="result-value" id="r-tx">—</div>
-        </div>
-        <div class="result-field half">
-          <label>Duration</label>
-          <div class="result-value" id="r-duration">—</div>
-        </div>
-        <div class="result-field half">
-          <label>Resolution</label>
-          <div class="result-value" id="r-resolution">—</div>
+        <!-- Layer 2: Blockchain -->
+        <div class="layer">
+          <div class="layer-label">Layer 2 — Blockchain hash</div>
+          <div class="layer-title">Hash stored on Sepolia</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:6px">Video ID: <span id="reg-vid-id" style="color:var(--accent);font-family:var(--mono);font-size:12px">—</span></div>
+          <div style="font-size:13px;color:var(--muted);margin-top:4px">Block: <span id="reg-block" style="color:var(--text);font-family:var(--mono);font-size:12px">—</span></div>
         </div>
       </div>
+      <div class="result-body">
+        <div class="rf"><label>SHA-256 hash</label><div class="rv" id="reg-hash">—</div></div>
+        <div class="rf"><label>Transaction</label><div class="rv" id="reg-tx">—</div></div>
+        <div class="rf half"><label>Duration</label><div class="rv" id="reg-dur">—</div></div>
+        <div class="rf half"><label>Resolution</label><div class="rv" id="reg-res">—</div></div>
+      </div>
     </div>
-
-    <div class="error-msg" id="err-register"></div>
+    <div class="error-msg" id="err-reg"></div>
   </div>
 
-  <!-- ── TAB: Verify ── -->
-  <div class="tab-panel" id="tab-verify">
+  <!-- ═══ TAB: ANALYSE ═══ -->
+  <div class="tab-panel" id="tab-analyse">
+    <p style="font-size:14px;color:var(--muted);margin-bottom:20px">Upload any video — no registration needed. The AI will scan it for deepfake patterns and return a risk score.</p>
+    <div class="upload-zone" id="dz-an" ondragover="onDragOver(event,'dz-an')" ondragleave="onDragLeave('dz-an')" ondrop="onDrop(event,'f-an','fp-an')">
+      <input type="file" id="f-an" accept="video/*" onchange="onFileSelect(this,'fp-an','an')">
+      <div class="icon">🔬</div>
+      <p><strong>Drop any suspicious video</strong> here to scan it</p>
+      <p style="margin-top:4px">Works even on videos that were never registered</p>
+    </div>
+    <div class="file-preview" id="fp-an">
+      <span>📹</span><span class="fname" id="fn-an">—</span><span class="fsize" id="fs-an">—</span>
+    </div>
+    <button class="btn btn-analyse" id="btn-an" onclick="analyseVideo()" disabled>🔬 &nbsp;Scan for Deepfakes</button>
 
+    <div class="progress-wrap" id="prog-an">
+      <div class="progress-label">Analysing frames with AI...</div>
+      <div class="progress-bar-wrap"><div class="progress-bar" id="pbar-an"></div></div>
+    </div>
+
+    <div class="result-card" id="res-an">
+      <div class="result-header">
+        <span class="result-badge" id="an-badge">—</span>
+        <span class="result-title" id="an-title">—</span>
+      </div>
+      <div style="padding:20px 22px">
+        <div class="layer-label">Deepfake probability score</div>
+        <div class="score-bar-wrap" style="height:12px"><div class="score-bar" id="an-bar" style="width:0%"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-family:var(--mono);margin-top:4px"><span>0% — Real</span><span>100% — Fake</span></div>
+        <div style="font-size:22px;font-weight:600;margin:12px 0 4px" id="an-pct">—</div>
+        <div style="font-size:13px;color:var(--muted)" id="an-frames">—</div>
+        <div class="untrained-note" id="an-note" style="display:none;margin-top:10px">Note: model not trained yet — scores are approximate.</div>
+      </div>
+      <div class="verdict" id="an-verdict">
+        <span class="vdot"></span><span id="an-verdict-text">—</span>
+      </div>
+    </div>
+    <div class="error-msg" id="err-an"></div>
+  </div>
+
+  <!-- ═══ TAB: VERIFY ═══ -->
+  <div class="tab-panel" id="tab-verify">
     <div class="field">
       <label>Video ID (from registration)</label>
-      <input type="text" id="verify-id" placeholder="e.g. abc123def456" />
+      <input type="text" id="verify-id" placeholder="e.g. abc123def456" oninput="updateVerifyBtn()">
+    </div>
+    <div class="upload-zone" id="dz-ver" ondragover="onDragOver(event,'dz-ver')" ondragleave="onDragLeave('dz-ver')" ondrop="onDrop(event,'f-ver','fp-ver')">
+      <input type="file" id="f-ver" accept="video/*" onchange="onFileSelect(this,'fp-ver','ver')">
+      <div class="icon">🔗</div>
+      <p><strong>Drop the video to verify</strong></p>
+      <p style="margin-top:4px">We'll run both AI scan + blockchain check</p>
+    </div>
+    <div class="file-preview" id="fp-ver">
+      <span>📹</span><span class="fname" id="fn-ver">—</span><span class="fsize" id="fs-ver">—</span>
+    </div>
+    <button class="btn btn-verify" id="btn-ver" onclick="verifyVideo()" disabled>🔗 &nbsp;Run Both Checks</button>
+
+    <div class="progress-wrap" id="prog-ver">
+      <div class="progress-label">Running two-layer verification...</div>
+      <div class="progress-bar-wrap"><div class="progress-bar" id="pbar-ver"></div></div>
     </div>
 
-    <div class="upload-zone" id="drop-verify"
-         ondragover="onDragOver(event,'drop-verify')"
-         ondragleave="onDragLeave('drop-verify')"
-         ondrop="onDrop(event,'verify-file','file-preview-ver')">
-      <input type="file" id="verify-file" accept="video/*"
-             onchange="onFileSelect(this,'file-preview-ver')">
-      <div class="upload-icon">🔍</div>
-      <p><strong>Drag &amp; drop</strong> the video to verify</p>
-      <p>We'll recompute its fingerprint and compare against the blockchain</p>
-    </div>
-
-    <div class="file-preview" id="file-preview-ver">
-      <span>📹</span>
-      <span class="fname" id="fname-ver">—</span>
-      <span class="fsize" id="fsize-ver">—</span>
-    </div>
-
-    <button class="btn btn-verify" id="btn-verify" onclick="verifyVideo()" disabled>
-      🔗&nbsp; Verify on Blockchain
-    </button>
-
-    <!-- Result -->
-    <div class="result-card" id="result-verify">
+    <div class="result-card" id="res-ver">
       <div class="result-header">
-        <span class="result-badge" id="v-badge">—</span>
-        <span class="result-title" id="v-title">—</span>
+        <span class="result-badge" id="ver-badge">—</span>
+        <span class="result-title" id="ver-title">—</span>
+      </div>
+      <div class="layers">
+        <!-- Layer 1 -->
+        <div class="layer">
+          <div class="layer-label">Layer 1 — AI deepfake scan</div>
+          <div class="layer-title" id="ver-df-verdict">—</div>
+          <div class="score-bar-wrap"><div class="score-bar" id="ver-df-bar" style="width:0%"></div></div>
+          <div class="score-label" id="ver-df-conf">—</div>
+        </div>
+        <!-- Layer 2 -->
+        <div class="layer">
+          <div class="layer-label">Layer 2 — Blockchain hash</div>
+          <div class="layer-title" id="ver-hash-verdict">—</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:6px;font-family:var(--mono);word-break:break-all" id="ver-hash-orig">—</div>
+        </div>
       </div>
       <div class="result-body">
-        <div class="result-field">
-          <label>Original Hash (blockchain)</label>
-          <div class="result-value" id="v-original">—</div>
-        </div>
-        <div class="result-field">
-          <label>Recomputed Hash (uploaded video)</label>
-          <div class="result-value" id="v-new">—</div>
-        </div>
+        <div class="rf"><label>Original hash (blockchain)</label><div class="rv" id="ver-orig">—</div></div>
+        <div class="rf"><label>Recomputed hash (your video)</label><div class="rv" id="ver-new">—</div></div>
       </div>
-      <div class="verdict" id="v-verdict">
-        <span class="verdict-dot"></span>
-        <span id="v-verdict-text">—</span>
+      <div class="verdict" id="ver-verdict">
+        <span class="vdot"></span><span id="ver-verdict-text">—</span>
       </div>
     </div>
-
-    <div class="error-msg" id="err-verify"></div>
+    <div class="error-msg" id="err-ver"></div>
   </div>
 
   <footer>
     <div><span class="pulse"></span>Sepolia Testnet · Chain ID 11155111</div>
-    <div>ForensicLedger v1.0 · B.Tech CSE Project</div>
+    <div>ForensicLedger v2.0 · Two-Layer AI System</div>
   </footer>
 </div>
 
 <script>
-  // ── Tab switching ────────────────────────────────────────────────
-  function switchTab(name) {
-    document.querySelectorAll('.tab-btn').forEach((b,i) => {
-      b.classList.toggle('active', ['register','verify'][i] === name);
-    });
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    document.getElementById('tab-' + name).classList.add('active');
-  }
+// ── Tab switching ────────────────────────────────────────────────────────────
+function switchTab(name) {
+  ['register','analyse','verify'].forEach((t,i) => {
+    document.getElementById('tab-'+t).classList.toggle('active', t===name);
+    document.querySelectorAll('.tab-btn')[i].classList.toggle('active', t===name);
+  });
+}
 
-  // ── Drag & drop ──────────────────────────────────────────────────
-  function onDragOver(e, zoneId) {
-    e.preventDefault();
-    document.getElementById(zoneId).classList.add('dragover');
-  }
+// ── Drag & drop ──────────────────────────────────────────────────────────────
+function onDragOver(e,id){e.preventDefault();document.getElementById(id).classList.add('dragover')}
+function onDragLeave(id){document.getElementById(id).classList.remove('dragover')}
+function onDrop(e,inputId,previewId){
+  e.preventDefault();
+  document.getElementById(e.currentTarget.id).classList.remove('dragover');
+  const f=e.dataTransfer.files[0]; if(!f) return;
+  const dt=new DataTransfer(); dt.items.add(f);
+  document.getElementById(inputId).files=dt.files;
+  const tab=inputId==='f-reg'?'reg':inputId==='f-an'?'an':'ver';
+  showPreview(f,previewId,tab);
+}
+function onFileSelect(input,previewId,tab){if(input.files[0])showPreview(input.files[0],previewId,tab)}
+function showPreview(f,previewId,tab){
+  document.getElementById(previewId).classList.add('visible');
+  document.getElementById('fn-'+tab).textContent=f.name;
+  document.getElementById('fs-'+tab).textContent=(f.size/1048576).toFixed(1)+' MB';
+  if(tab==='reg') document.getElementById('btn-reg').disabled=false;
+  if(tab==='an')  document.getElementById('btn-an').disabled=false;
+  if(tab==='ver') updateVerifyBtn();
+}
+function updateVerifyBtn(){
+  const f=document.getElementById('f-ver').files[0];
+  const id=document.getElementById('verify-id').value.trim();
+  document.getElementById('btn-ver').disabled=!(f&&id);
+}
 
-  function onDragLeave(zoneId) {
-    document.getElementById(zoneId).classList.remove('dragover');
-  }
+// ── Progress ─────────────────────────────────────────────────────────────────
+function startProgress(id){
+  document.getElementById('prog-'+id).classList.add('visible');
+  let w=0; const bar=document.getElementById('pbar-'+id);
+  return setInterval(()=>{w=Math.min(w+2,88);bar.style.width=w+'%'},200);
+}
+function stopProgress(id,timer){
+  clearInterval(timer);
+  document.getElementById('pbar-'+id).style.width='100%';
+}
 
-  function onDrop(e, inputId, previewId) {
-    e.preventDefault();
-    const zone = e.currentTarget;
-    zone.classList.remove('dragover');
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-    const input = document.getElementById(inputId);
-    // Assign dropped file to the hidden input
-    const dt = new DataTransfer();
-    dt.items.add(file);
-    input.files = dt.files;
-    showPreview(file, previewId);
-    updateButtons();
-  }
+// ── Error ────────────────────────────────────────────────────────────────────
+function setError(id,msg){
+  const el=document.getElementById('err-'+id);
+  el.textContent=msg; el.classList.toggle('visible',!!msg);
+}
 
-  function onFileSelect(input, previewId) {
-    if (input.files[0]) {
-      showPreview(input.files[0], previewId);
-    }
-    updateButtons();
-  }
+// ── Score bar helper ─────────────────────────────────────────────────────────
+function setScoreBar(barId, score) {
+  const bar = document.getElementById(barId);
+  bar.style.width = (score*100)+'%';
+  bar.className = 'score-bar ' + (score<0.3?'score-low':score<0.6?'score-med':'score-high');
+}
 
-  function showPreview(file, previewId) {
-    const wrap = document.getElementById(previewId);
-    const prefix = previewId.includes('reg') ? 'reg' : 'ver';
-    wrap.classList.add('visible');
-    document.getElementById('fname-' + prefix).textContent = file.name;
-    document.getElementById('fsize-' + prefix).textContent =
-      (file.size / (1024 * 1024)).toFixed(1) + ' MB';
-  }
+function riskBadgeClass(risk){
+  return risk==='LOW'?'badge-success':risk==='HIGH'?'badge-error':'badge-warn';
+}
+function riskVerdictClass(risk){
+  return risk==='LOW'?'authentic':risk==='HIGH'?'tampered':'suspicious';
+}
 
-  function updateButtons() {
-    const regFile = document.getElementById('register-file').files[0];
-    document.getElementById('btn-register').disabled = !regFile;
+// ── Register ─────────────────────────────────────────────────────────────────
+async function registerVideo(){
+  const file=document.getElementById('f-reg').files[0]; if(!file) return;
+  setError('reg','');
+  document.getElementById('res-reg').classList.remove('visible');
+  document.getElementById('btn-reg').disabled=true;
+  const timer=startProgress('reg');
 
-    const verFile = document.getElementById('verify-file').files[0];
-    const verId   = document.getElementById('verify-id').value.trim();
-    document.getElementById('btn-verify').disabled = !(verFile && verId);
-  }
+  const labels=['Extracting frames...','Running AI deepfake scan...','Generating fingerprint...','Storing on blockchain...'];
+  let li=0; const lbl=document.getElementById('prog-reg-label');
+  const labelTimer=setInterval(()=>{if(li<labels.length-1){lbl.textContent=labels[++li]}},2200);
 
-  document.getElementById('verify-id').addEventListener('input', updateButtons);
+  const form=new FormData(); form.append('video',file);
+  try{
+    const res=await fetch('/api/register',{method:'POST',body:form});
+    const d=await res.json();
+    clearInterval(labelTimer); stopProgress('reg',timer);
+    if(!res.ok||d.error){setError('reg',d.error||'Registration failed.');return}
 
-  // ── Register ─────────────────────────────────────────────────────
-  async function registerVideo() {
-    const file = document.getElementById('register-file').files[0];
-    if (!file) return;
+    const df=d.deepfake;
+    // Layer 1 — deepfake
+    document.getElementById('reg-df-verdict').textContent=df.verdict;
+    setScoreBar('reg-df-bar', df.score);
+    document.getElementById('reg-df-conf').textContent=df.confidence;
+    if(!df.is_trained) document.getElementById('reg-df-note').style.display='block';
 
-    setError('register', '');
-    document.getElementById('result-register').classList.remove('visible');
-    showProgress('register', true);
-    document.getElementById('btn-register').disabled = true;
+    // Layer 2 — blockchain
+    document.getElementById('reg-vid-id').textContent=d.video_id;
+    document.getElementById('reg-block').textContent=d.block_number;
 
-    const steps = [
-      { id: 'step-1', pct: 25  },
-      { id: 'step-2', pct: 50  },
-      { id: 'step-3', pct: 75  },
-      { id: 'step-4', pct: 100 },
-    ];
+    // Details
+    document.getElementById('reg-hash').textContent=d.hash;
+    document.getElementById('reg-tx').innerHTML=`<a href="${d.explorer_url}" target="_blank">${d.tx_hash}</a>`;
+    document.getElementById('reg-dur').textContent=d.metadata.duration_seconds+'s';
+    document.getElementById('reg-res').textContent=d.metadata.width+'×'+d.metadata.height;
 
-    // Animate steps in sync with the actual backend call
-    let stepIdx = 0;
-    const stepInterval = setInterval(() => {
-      if (stepIdx < steps.length) {
-        markStep(steps[stepIdx].id, 'active');
-        if (stepIdx > 0) markStep(steps[stepIdx - 1].id, 'done');
-        setProgress('register', steps[stepIdx].pct * 0.8); // hold at 80%
-        stepIdx++;
-      }
-    }, 1800);
+    document.getElementById('res-reg').classList.add('visible');
+  }catch(e){stopProgress('reg',timer);setError('reg','Network error: '+e.message)}
+  finally{document.getElementById('btn-reg').disabled=false}
+}
 
-    const form = new FormData();
-    form.append('video', file);
+// ── Analyse ──────────────────────────────────────────────────────────────────
+async function analyseVideo(){
+  const file=document.getElementById('f-an').files[0]; if(!file) return;
+  setError('an','');
+  document.getElementById('res-an').classList.remove('visible');
+  document.getElementById('btn-an').disabled=true;
+  const timer=startProgress('an');
 
-    try {
-      const res  = await fetch('/api/register', { method: 'POST', body: form });
-      const data = await res.json();
+  const form=new FormData(); form.append('video',file);
+  try{
+    const res=await fetch('/api/analyse',{method:'POST',body:form});
+    const d=await res.json();
+    stopProgress('an',timer);
+    if(!res.ok||d.error){setError('an',d.error||'Analysis failed.');return}
 
-      clearInterval(stepInterval);
-      steps.forEach(s => markStep(s.id, 'done'));
-      setProgress('register', 100);
+    const df=d.deepfake;
+    const risk=df.risk_level;
 
-      if (!res.ok || data.error) {
-        setError('register', data.error || 'Registration failed.');
-        return;
-      }
+    document.getElementById('an-badge').textContent=risk+' RISK';
+    document.getElementById('an-badge').className='result-badge '+riskBadgeClass(risk);
+    document.getElementById('an-title').textContent=df.verdict;
 
-      // Fill result card
-      document.getElementById('r-video-id').textContent  = data.video_id;
-      document.getElementById('r-block').textContent     = data.block_number;
-      document.getElementById('r-hash').textContent      = data.hash;
-      document.getElementById('r-tx').innerHTML =
-        `<a href="${data.explorer_url}" target="_blank">${data.tx_hash}</a>`;
-      document.getElementById('r-duration').textContent  =
-        data.metadata.duration_seconds + 's';
-      document.getElementById('r-resolution').textContent =
-        data.metadata.width + '×' + data.metadata.height;
+    setScoreBar('an-bar', df.score);
+    document.getElementById('an-pct').textContent=Math.round(df.score*100)+'% probability of being fake';
+    document.getElementById('an-frames').textContent=df.frames_analysed+' frames analysed';
 
-      document.getElementById('result-register').classList.add('visible');
+    if(!df.is_trained) document.getElementById('an-note').style.display='block';
 
-    } catch (err) {
-      clearInterval(stepInterval);
-      setError('register', 'Network error: ' + err.message);
-    } finally {
-      document.getElementById('btn-register').disabled = false;
-    }
-  }
+    const v=document.getElementById('an-verdict');
+    v.className='verdict '+riskVerdictClass(risk);
+    document.getElementById('an-verdict-text').textContent=
+      risk==='LOW'?'This video shows no signs of AI manipulation.'
+      :risk==='HIGH'?'Warning: AI detected manipulation patterns in this video.'
+      :'Suspicious patterns detected — recommend manual review.';
 
-  // ── Verify ───────────────────────────────────────────────────────
-  async function verifyVideo() {
-    const file    = document.getElementById('verify-file').files[0];
-    const videoId = document.getElementById('verify-id').value.trim();
-    if (!file || !videoId) return;
+    document.getElementById('res-an').classList.add('visible');
+  }catch(e){stopProgress('an',timer);setError('an','Network error: '+e.message)}
+  finally{document.getElementById('btn-an').disabled=false}
+}
 
-    setError('verify', '');
-    document.getElementById('result-verify').classList.remove('visible');
-    document.getElementById('btn-verify').disabled = true;
+// ── Verify ───────────────────────────────────────────────────────────────────
+async function verifyVideo(){
+  const file=document.getElementById('f-ver').files[0];
+  const videoId=document.getElementById('verify-id').value.trim();
+  if(!file||!videoId) return;
 
-    const form = new FormData();
-    form.append('video', file);
-    form.append('video_id', videoId);
+  setError('ver','');
+  document.getElementById('res-ver').classList.remove('visible');
+  document.getElementById('btn-ver').disabled=true;
+  const timer=startProgress('ver');
 
-    try {
-      const res  = await fetch('/api/verify', { method: 'POST', body: form });
-      const data = await res.json();
+  const form=new FormData(); form.append('video',file); form.append('video_id',videoId);
+  try{
+    const res=await fetch('/api/verify',{method:'POST',body:form});
+    const d=await res.json();
+    stopProgress('ver',timer);
+    if(!res.ok||d.error){setError('ver',d.error||'Verification failed.');return}
 
-      if (!res.ok || data.error) {
-        setError('verify', data.error || 'Verification failed.');
-        return;
-      }
+    const df=d.deepfake; const hc=d.hash_check; const ov=d.overall;
 
-      const card    = document.getElementById('result-verify');
-      const badge   = document.getElementById('v-badge');
-      const verdict = document.getElementById('v-verdict');
+    // Overall badge
+    const overall=ov.authentic?'AUTHENTIC':ov.verdict.includes('SUSPICIOUS')?'SUSPICIOUS':'TAMPERED';
+    document.getElementById('ver-badge').textContent=overall;
+    document.getElementById('ver-badge').className='result-badge '+(ov.authentic?'badge-success':overall==='SUSPICIOUS'?'badge-warn':'badge-error');
+    document.getElementById('ver-title').textContent=ov.verdict;
 
-      document.getElementById('v-original').textContent = data.original_hash;
-      document.getElementById('v-new').textContent      = data.new_hash;
-      document.getElementById('v-title').textContent    = data.verdict;
+    // Layer 1
+    document.getElementById('ver-df-verdict').textContent=df.verdict;
+    setScoreBar('ver-df-bar',df.score);
+    document.getElementById('ver-df-conf').textContent=df.confidence;
 
-      if (data.authentic) {
-        badge.textContent = 'Authentic';
-        badge.className   = 'result-badge badge-success';
-        verdict.className = 'verdict authentic';
-        document.getElementById('v-verdict-text').textContent =
-          'Hashes match — this video is authentic and unmodified.';
-      } else {
-        badge.textContent = 'Tampered';
-        badge.className   = 'result-badge badge-error';
-        verdict.className = 'verdict tampered';
-        document.getElementById('v-verdict-text').textContent =
-          'Hashes differ — this video has been altered or is not the original.';
-      }
+    // Layer 2
+    document.getElementById('ver-hash-verdict').textContent=hc.verdict;
+    document.getElementById('ver-orig').textContent=hc.original_hash;
+    document.getElementById('ver-new').textContent=hc.new_hash;
 
-      card.classList.add('visible');
+    // Overall verdict bar
+    const v=document.getElementById('ver-verdict');
+    v.className='verdict '+(ov.authentic?'authentic':ov.verdict.includes('SUSPICIOUS')?'suspicious':'tampered');
+    document.getElementById('ver-verdict-text').textContent=ov.summary;
 
-    } catch (err) {
-      setError('verify', 'Network error: ' + err.message);
-    } finally {
-      document.getElementById('btn-verify').disabled = false;
-    }
-  }
-
-  // ── Helpers ──────────────────────────────────────────────────────
-  function showProgress(section, show) {
-    document.getElementById('prog-' + section).classList.toggle('visible', show);
-  }
-
-  function setProgress(section, pct) {
-    document.getElementById('pbar-' + section).style.width = pct + '%';
-  }
-
-  function markStep(id, cls) {
-    const el = document.getElementById(id);
-    el.classList.remove('active', 'done');
-    el.classList.add(cls);
-  }
-
-  function setError(section, msg) {
-    const el = document.getElementById('err-' + section);
-    el.textContent = msg;
-    el.classList.toggle('visible', !!msg);
-  }
+    document.getElementById('res-ver').classList.add('visible');
+  }catch(e){stopProgress('ver',timer);setError('ver','Network error: '+e.message)}
+  finally{document.getElementById('btn-ver').disabled=false}
+}
 </script>
 </body>
 </html>
