@@ -103,3 +103,14 @@ def save_frames(frames, output_folder="extracted_frames"):
         print(f"Saved: {filename}")
 
     print(f"All frames saved to '{output_folder}/' folder.")
+class VideoProcessor:
+    def __init__(self):
+        pass
+
+    def extract(self, video_path, interval_seconds=1):
+        frames = extract_frames(video_path, interval_seconds)
+        metadata = get_video_metadata(video_path)
+        return frames, metadata
+
+    def save(self, frames, output_folder="extracted_frames"):
+        return save_frames(frames, output_folder)  

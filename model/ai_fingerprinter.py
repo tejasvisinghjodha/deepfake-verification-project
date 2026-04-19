@@ -359,3 +359,12 @@ if __name__ == "__main__":
     print("\n[ALL TESTS PASSED] Ready to integrate with Member 1 and Member 3.")
     print("=" * 60)
 
+class AIFingerprinter:
+    def __init__(self):
+        print("AIFingerprinter initialized")
+
+    def fingerprint(self, frames):
+        return generate_fingerprint(frames)
+
+    def compare(self, fp1, fp2):
+        return compare_fingerprints(fp1, fp2)

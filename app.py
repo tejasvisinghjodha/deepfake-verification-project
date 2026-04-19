@@ -12,6 +12,8 @@ Two-layer verification system:
 """
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import json
 import hashlib
 from pathlib import Path
